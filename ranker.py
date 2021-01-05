@@ -1,5 +1,6 @@
 import linecache
 import math
+import traceback
 
 import utils
 
@@ -54,17 +55,29 @@ class Ranker:
         building off-line matrix, and write it to matrix file
         :param  dictionary of inverted index
         """
-        print('start matrix')
+        # op3: FIX
+        """
+                extend query method: global method
+                building off-line matrix, and write it to matrix file
+                :param  dictionary of inverted index
+                """
         try:
             inverted_index = utils.load_obj("inverted_idx")
-            f = open('posting_files/matrix.txt', "a")
-            matrix = {}
+            reversed_inverted_index = utils.load_obj("reversed_inverted_index")
+            # f = open('posting_files/matrix.txt', "a")
             term_position_matrix = []
+            matrix = {}
+            c_dict = {}  # cij
             for term1 in inverted_index:
                 if term1[0].isalpha():
                     name = 'posting_files/' + term1[0].lower() + '.txt'
+                elif term1[0] == '#':
+                    name = "posting_files/#.txt"
+                elif term1[0] == '@':
+                    name = "posting_files/@.txt"
                 else:
-                    name = 'posting_files/signs.txt'
+                    name = 'posting_files/numbers.txt'
+
                 line = linecache.getline(name, inverted_index[term1][
                     1])  # find the term line number in the relevant posting file
                 if line == '':
@@ -75,62 +88,173 @@ class Ranker:
                 # term1_tweet_id = [tweet_id for tweet_id in line[1] if tweet_id != '']  # tweet ids of the term
                 arr = []
                 arr_sum = 0
-                for term2 in inverted_index:
-                    if term2[0].isalpha():
-                        name = 'posting_files/' + term2[0].lower() + '.txt'
-                    else:
-                        name = 'posting_files/signs.txt'
-                    line2 = linecache.getline(name, inverted_index[term2][
-                        1])  # find the term line number in the relevant posting file
-                    if line2 == '' or line2 == '\n':
-                        break
-                    line2 = line2.split(":")
 
-                    line2[1] = self.replace_latters(line2[1])
-                    term2_tweet_id = line2[1].split(")")
-                    # term2_tweet_id = [tweet_id for tweet_id in line2[1] if tweet_id != '']  # tweet ids of the term
-                    cii = 0
-                    cij = 0
-                    cjj = 0
-                    for t1_tuple in term1_tweet_id:  # tuple = (tweet_id, freq)
-                        if len(t1_tuple) > 0:
-                            t1_tuple = t1_tuple.split(',')
-                            if t1_tuple[0] == '':
-                                t1_tuple = t1_tuple[1:]
-                            for t2_tuple in term2_tweet_id:  # tuple = (tweet_id, freq)
-                                if len(t2_tuple) > 0:
-                                    t2_tuple = t2_tuple.split(',')
-                                    if t2_tuple[0] == '':
-                                        t2_tuple = t2_tuple[1:]
-                                    if term1 == term2:  # same term
-                                        cii += int(t1_tuple[1]) * int(t1_tuple[1])
-                                    elif t1_tuple[0] == t2_tuple[0]:  # ids
-                                        cij += int(t1_tuple[1]) * int(t2_tuple[1])
-                                        cjj += int(t2_tuple[1]) * int(t2_tuple[1])
-                    if (cii + cjj - cij) != 0:
-                        sij = cij / (cii + cjj - cij)
-                        if sij > 0:
-                            arr.append([term2, sij])
-                            arr_sum += sij
-                    # else:
-                    #     sij = 0
-                    # arr.append(abs(sij))
-                    # arr.append([term2, sij])
-                    # arr_sum += sij
-                if arr_sum > 25:  # threshold line of the term sum to enter the matrix
-                    # f.write(str(arr) + '\n')
-                    # term_position_matrix.append(term1.lower())
+                for t1_tuple in term1_tweet_id:  # tuple = (tweet_id, freq)
+                    if len(t1_tuple) > 1:
+                        t1_tuple = t1_tuple.split(",")
+                        if t1_tuple[0] == '':
+                            t1_tuple = t1_tuple[1:]
+                        if len(t1_tuple) == 2:
+                            term_and_freq = reversed_inverted_index[t1_tuple[0]]
+                            # for term2 in inverted_index:
+                            #             term2 = ''
+                            #             new_term = ''
+                            for term_in_tweet in term_and_freq:
+                                cii = 0
+                                cij = 0
+                                cjj = 0
+                                sij = 0
+                                term2 = term_in_tweet[0]
+                                new_term = term1 + term2
+                                reversed_new_term = term2 + term1
+                                if new_term in c_dict:
+                                    continue
+                                elif reversed_new_term in c_dict:
+                                    cij = c_dict[reversed_new_term]
+                                    cii = c_dict[term1 + term1]
+                                    cjj = c_dict[term2 + term2]
+                                else:
+                                    if term2[0].isalpha():
+                                        name = 'posting_files/' + term2[0].lower() + '.txt'
+                                    elif term2[0] == '#':
+                                        name = "posting_files/#.txt"
+                                    elif term2[0] == '@':
+                                        name = "posting_files/@.txt"
+                                    else:
+                                        name = 'posting_files/numbers.txt'
+                                    line2 = linecache.getline(name, inverted_index[term2][
+                                        1])  # find the term line number in the relevant posting file
+                                    if line2 == '' or line2 == '\n':
+                                        break
+                                    line2 = line2.split(":")
+                                    # copied_line2 = ''
+                                    line2[1] = self.replace_latters(line2[1])
+                                    term2_tweet_id = line2[1].split(")")
+                                    # term2_tweet_id = [tweet_id for tweet_id in line2[1] if tweet_id != '']  # tweet ids of the term
+
+                                    # for t1_tuple in term1_tweet_id:  # tuple = (tweet_id, freq)
+                                    # t1_tuple = t1_tuple.split(',')
+                                    # if t1_tuple[0] == '':
+                                    #     t1_tuple = t1_tuple[1:]
+                                    for t2_tuple in term2_tweet_id:  # tuple = (tweet_id, freq)
+                                        if len(t2_tuple) == 2:
+                                            t2_tuple = t2_tuple.split(',')
+                                            if t2_tuple[0] == '':
+                                                t2_tuple = t2_tuple[1:]
+                                            if t1_tuple[0] == t2_tuple[0]:  # ids
+                                                cij += int(t1_tuple[1]) * int(t2_tuple[1])
+                                                # cjj += int(t2_tuple[1])*int(t2_tuple[1])
+                                                c_dict[new_term] = cij
+                                            cii += int(t1_tuple[1]) * int(t1_tuple[1])
+                                            c_dict[term1 + term1] = cii
+                                            cjj += int(t2_tuple[1]) * int(t2_tuple[1])
+                                            c_dict[term2 + term2] = cjj
+                                if new_term in c_dict:
+                                    cij = c_dict[new_term]
+                                elif reversed_new_term in c_dict:
+                                    cij = c_dict[reversed_new_term]
+                                cii = c_dict[term1 + term1]
+                                cjj = c_dict[term2 + term2]
+                                if (cii + cjj - cij) != 0:
+                                    sij = cij / (cii + cjj - cij)
+                                # else:
+                                #     sij = 0
+                                if sij > 0:
+                                    arr.append([term2, sij])
+                                    arr_sum += sij
+                if arr_sum > 0:  # threshold line of the term sum to enter the matrix
+                    # f.write(str(arr)+'\n')
                     matrix[term1] = arr
                     term_position_matrix.append(term1)
-            f.close()
+                    # term_position_matrix.append(term1.lower())
+            # f.close()
             utils.save_obj(term_position_matrix, "term_position_matrix")
             utils.save_obj(matrix, "matrix")
             # f = open("posting_files/term_position_matrix.txt", 'a')
             # f.write(str(term_position_matrix) + '\n')
             # f.close()
         except:
-            print(t1_tuple, t2_tuple)
+            print(traceback.print_exc())
+            print(t2_tuple, 't2_tuple')
+        ##op 1: NOT GOOD
+        # print('start matrix')
+        # try:
+        #     inverted_index = utils.load_obj("inverted_idx")
+        #     f = open('posting_files/matrix.txt', "a")
+        #     matrix = {}
+        #     term_position_matrix = []
+        #     for term1 in inverted_index:
+        #         if term1[0].isalpha():
+        #             name = 'posting_files/' + term1[0].lower() + '.txt'
+        #         else:
+        #             name = 'posting_files/signs.txt'
+        #         line = linecache.getline(name, inverted_index[term1][
+        #             1])  # find the term line number in the relevant posting file
+        #         if line == '':
+        #             break
+        #         line = line.split(":")
+        #         line[1] = self.replace_latters(line[1])
+        #         term1_tweet_id = line[1].split(")")
+        #         # term1_tweet_id = [tweet_id for tweet_id in line[1] if tweet_id != '']  # tweet ids of the term
+        #         arr = []
+        #         arr_sum = 0
+        #         for term2 in inverted_index:
+        #             if term2[0].isalpha():
+        #                 name = 'posting_files/' + term2[0].lower() + '.txt'
+        #             else:
+        #                 name = 'posting_files/signs.txt'
+        #             line2 = linecache.getline(name, inverted_index[term2][
+        #                 1])  # find the term line number in the relevant posting file
+        #             if line2 == '' or line2 == '\n':
+        #                 break
+        #             line2 = line2.split(":")
+        #
+        #             line2[1] = self.replace_latters(line2[1])
+        #             term2_tweet_id = line2[1].split(")")
+        #             # term2_tweet_id = [tweet_id for tweet_id in line2[1] if tweet_id != '']  # tweet ids of the term
+        #             cii = 0
+        #             cij = 0
+        #             cjj = 0
+        #             for t1_tuple in term1_tweet_id:  # tuple = (tweet_id, freq)
+        #                 if len(t1_tuple) > 0:
+        #                     t1_tuple = t1_tuple.split(',')
+        #                     if t1_tuple[0] == '':
+        #                         t1_tuple = t1_tuple[1:]
+        #                     for t2_tuple in term2_tweet_id:  # tuple = (tweet_id, freq)
+        #                         if len(t2_tuple) > 0:
+        #                             t2_tuple = t2_tuple.split(',')
+        #                             if t2_tuple[0] == '':
+        #                                 t2_tuple = t2_tuple[1:]
+        #                             if term1 == term2:  # same term
+        #                                 cii += int(t1_tuple[1]) * int(t1_tuple[1])
+        #                             elif t1_tuple[0] == t2_tuple[0]:  # ids
+        #                                 cij += int(t1_tuple[1]) * int(t2_tuple[1])
+        #                                 cjj += int(t2_tuple[1]) * int(t2_tuple[1])
+        #             if (cii + cjj - cij) != 0:
+        #                 sij = cij / (cii + cjj - cij)
+        #                 if sij > 0:
+        #                     arr.append([term2, sij])
+        #                     arr_sum += sij
+        #             # else:
+        #             #     sij = 0
+        #             # arr.append(abs(sij))
+        #             # arr.append([term2, sij])
+        #             # arr_sum += sij
+        #         if arr_sum > 25:  # threshold line of the term sum to enter the matrix
+        #             # f.write(str(arr) + '\n')
+        #             # term_position_matrix.append(term1.lower())
+        #             matrix[term1] = arr
+        #             term_position_matrix.append(term1)
+        #     f.close()
+        #     utils.save_obj(term_position_matrix, "term_position_matrix")
+        #     utils.save_obj(matrix, "matrix")
+        #     # f = open("posting_files/term_position_matrix.txt", 'a')
+        #     # f.write(str(term_position_matrix) + '\n')
+        #     # f.close()
+        # except:
+        #     print(t1_tuple, t2_tuple)
 
+        # op2: CHECK IF GOOD
         # c_dict = {}  # cij
         # inverted_index = utils.load_obj("inverted_idx")
         # reversed_inverted_index = utils.load_obj("reversed_inverted_index")
